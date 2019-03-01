@@ -1,2 +1,2 @@
 # pass-journal-service
-service to provide a Journal object requeested by the UI
+service to provide a Journal object requested by the UI
