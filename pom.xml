@@ -33,6 +33,21 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+
+        <pass.java.client.version>0.5.2</pass.java.client.version>
     </properties>
-    
+
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.dataconservancy.pass</groupId>
+                <artifactId>pass-data-client</artifactId>
+                <version>${pass.java.client.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
 </project>
