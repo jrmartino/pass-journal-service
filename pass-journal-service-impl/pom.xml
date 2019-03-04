@@ -27,5 +27,31 @@
 
     <artifactId>pass-journal-service-impl</artifactId>
 
+    <dependencies>
+        <dependency>
+            <groupId> org.dataconservancy.pass</groupId>
+            <artifactId>pass-journal-service-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.dataconservancy.pass</groupId>
+            <artifactId>pass-data-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.json</groupId>
+            <artifactId>javax.json-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish</groupId>
+            <artifactId>javax.json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+
+    </dependencies>
+
 
 </project>
