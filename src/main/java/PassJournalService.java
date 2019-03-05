@@ -60,7 +60,9 @@ public class PassJournalService extends HttpServlet {
             stringBuffer.append(line);
         }
 
+        //take the json from crossref and create a Journal
         Journal journal = buildPassJournal(stringBuffer.toString());
+        //and compare it with what we already have, update if necessary
         journal = updateJournalinPass(journal);
 
         response.setContentType("application/json");
@@ -78,6 +80,13 @@ public class PassJournalService extends HttpServlet {
 
     }
 
+    /**
+     * Takes JSON which represents journal article metadata from Crossref
+     * and populates a new Journal object. Currently we take typed issns and the journal
+     * name.
+     * @param jsonInput - the JSON metadata from Crossref
+     * @return the PASS journal object
+     */
     Journal buildPassJournal(String jsonInput) {
 
         final String XREF_MESSAGE = "message";
@@ -124,6 +133,14 @@ public class PassJournalService extends HttpServlet {
         return passJournal;
     }
 
+    /**
+     * Take a Journal object constructed from Crossref metadata, and compare it with the
+     * version of this object which we have in pass. Construct the most complete Journal
+     * object possible from the two sources - PASS objects are more authoritative. Use the
+     * Crossref version if we don't have it already in PASS. Store the resulting object in PASS.
+     * @param journal - the Journal object generated from Crossref metadata
+     * @return the updated Journal object, stored in PASS if the PASS object needs updating.
+     */
     Journal updateJournalinPass(Journal journal) {
         List<String> issns = journal.getIssns();
 
