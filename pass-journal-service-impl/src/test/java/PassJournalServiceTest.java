@@ -15,11 +15,27 @@
  *   limitations under the License.
  */
 
+import org.dataconservancy.pass.client.PassClient;
 import org.dataconservancy.pass.model.Journal;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+@RunWith(MockitoJUnitRunner.class)
 public class PassJournalServiceTest {
+
+    @Mock
+    private PassClient passClientMock;
 
     PassJournalService underTest = new PassJournalService();
 
@@ -64,6 +80,47 @@ public class PassJournalServiceTest {
         Assert.assertEquals(2, passJournal.getIssns().size());
         Assert.assertTrue(passJournal.getIssns().contains("Print:1179-5468"));
         Assert.assertTrue(passJournal.getIssns().contains("Online:1179-5468"));
+
+    }
+
+    @Test
+    public void testupdateJournalInPass() {
+        URI journalUri = URI.create("journal");
+        String journalName = "Fancy Journal";
+        String issn1 = String.join(":", IssnType.PRINT.getPassTypeString(), "0000-0001");
+        String issn2 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0002");
+        List<String> issnList = new ArrayList<>();
+        issnList.add(issn1);
+        issnList.add(issn2);
+
+
+        String nlmta = "Irrelevant Data Item";
+
+        Journal completeJournal = new Journal();
+        completeJournal.setName(journalName);
+        completeJournal.setNlmta(nlmta);
+        completeJournal.setIssns(issnList);
+
+        Journal missingNameJournal = new Journal();
+        missingNameJournal.setNlmta(nlmta);
+        missingNameJournal.setIssns(issnList);
+
+        Journal missingOneIssnJournal = new Journal();
+        missingOneIssnJournal.setNlmta(nlmta);
+        missingOneIssnJournal.setName(journalName);
+        missingOneIssnJournal.getIssns().add(issn1);
+
+        Journal crossrefJournal = new Journal();
+        crossrefJournal.setName(journalName);
+        crossrefJournal.setIssns(issnList);
+
+        when(passClientMock.createResource(any(Journal.class))).thenReturn(journalUri);
+
+        //test that a complete journal doesn't change upon update
+        when(passClientMock.findByAttribute(Journal.class, "issns", issn1)).thenReturn(journalUri);
+        when(passClientMock.readResource(journalUri, Journal.class)).thenReturn(completeJournal);
+        Journal returnedJournal = underTest.updateJournalinPass(crossrefJournal);
+
 
 
     }

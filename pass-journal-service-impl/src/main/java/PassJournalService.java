@@ -16,6 +16,8 @@
  */
 
 
+import org.dataconservancy.pass.client.PassClient;
+import org.dataconservancy.pass.client.PassClientFactory;
 import org.dataconservancy.pass.model.Journal;
 
 import javax.json.Json;
@@ -23,6 +25,10 @@ import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
 import java.io.StringReader;
+import java.net.URI;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 /**
@@ -34,6 +40,8 @@ public class PassJournalService {
     private static final String XREF_ISSN_TYPE_ARRAY = "issn-type";
     private static final String XREF_ISSN_TYPE = "type";
     private static final String XREF_ISSN_VALUE = "value";
+
+    PassClient passClient = PassClientFactory.getPassClient();
 
 
     Journal buildPassJournal(String jsonInput) {
@@ -53,7 +61,7 @@ public class PassJournalService {
 
         for (int i=0; i < issnTypeArray.size(); i++) {
             JsonObject issn = issnTypeArray.getJsonObject(i);
-            
+
             String type="";
 
             //translate crossref type strings to PASS type strings
@@ -75,5 +83,47 @@ public class PassJournalService {
         return passJournal;
     }
 
+    Journal updateJournalinPass(Journal journal) {
+        List<String> issns = journal.getIssns();
 
+        URI passJournalUri = null;
+        Journal passJournal;
+
+        for (String issn : issns) {
+            passJournalUri = passClient.findByAttribute(Journal.class, "issns", issn);
+            if (passJournalUri != null) {
+                break;
+            }
+        }
+
+        if (passJournalUri == null) {//we don't have this journal in pass yet - let's put this one in
+            passJournal = passClient.createAndReadResource(journal, Journal.class);
+        } else { //we have a journal, let's see if we can add anything new - title or issns. we add only if not present
+            boolean update = false;
+            passJournal = passClient.readResource(passJournalUri, Journal.class);
+            if (passJournal != null) {
+
+                //check to see if we can supply a journal name
+                if ((passJournal.getName() == null || passJournal.getName().isEmpty()) && !journal.getName().isEmpty()) {
+                    passJournal.setName(journal.getName());
+                    update = true;
+                }
+
+                //check to see if we can supply issns
+                if (!passJournal.getIssns().containsAll(journal.getIssns())) {
+                    List<String> newIssnList = Stream.concat(passJournal.getIssns().stream(), journal.getIssns().stream()).distinct().collect(Collectors.toList());
+                    passJournal.setIssns(newIssnList);
+                    update = true;
+                }
+
+                if (update) {
+                    passClient.updateResource(passJournal);
+                }
+            } else {
+                throw new RuntimeException("URI for journal was found, but the object could not be retrieved.");
+            }
+
+        }
+        return passJournal;
+    }
 }
