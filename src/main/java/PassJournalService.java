@@ -15,15 +15,23 @@
  *   limitations under the License.
  */
 
-
 import org.dataconservancy.pass.client.PassClient;
 import org.dataconservancy.pass.client.PassClientFactory;
+import org.dataconservancy.pass.client.PassJsonAdapter;
+import org.dataconservancy.pass.client.adapter.PassJsonAdapterBasic;
 import org.dataconservancy.pass.model.Journal;
 
 import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.URI;
 import java.util.List;
@@ -34,17 +42,46 @@ import java.util.stream.Stream;
 /**
  * @author jrm
  */
-public class PassJournalService {
-    private static final String XREF_MESSAGE = "message";
-    private static final String XREF_TITLE = "container-title";
-    private static final String XREF_ISSN_TYPE_ARRAY = "issn-type";
-    private static final String XREF_ISSN_TYPE = "type";
-    private static final String XREF_ISSN_VALUE = "value";
+public class PassJournalService extends HttpServlet {
 
     PassClient passClient = PassClientFactory.getPassClient();
+    PassJsonAdapter json = new PassJsonAdapterBasic();
 
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        //System.out.println("MyServlet's doGet() method is invoked.");
+        StringBuffer stringBuffer = new StringBuffer();
+        String line = null;
+
+        BufferedReader reader = request.getReader();
+        while ((line = reader.readLine()) != null) {
+            stringBuffer.append(line);
+        }
+
+        Journal journal = buildPassJournal(stringBuffer.toString());
+        journal = updateJournalinPass(journal);
+        
+        response.setContentType("application/json");
+        response.setCharacterEncoding("utf-8");
+        try (OutputStream out = response.getOutputStream()) {
+            out.write(json.toJson(journal, true));
+            response.setStatus(200);
+        }
+
+
+        // LOG.debug("Servicing new request");
+
+    }
 
     Journal buildPassJournal(String jsonInput) {
+
+        final String XREF_MESSAGE = "message";
+        final String XREF_TITLE = "container-title";
+        final String XREF_ISSN_TYPE_ARRAY = "issn-type";
+        final String XREF_ISSN_TYPE = "type";
+        final String XREF_ISSN_VALUE = "value";
+
 
         Journal  passJournal = new Journal();
 
