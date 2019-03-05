@@ -25,7 +25,6 @@ import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -45,12 +44,12 @@ import java.util.stream.Stream;
  */
 public class PassJournalService extends HttpServlet {
 
-    PassClient passClient = PassClientFactory.getPassClient();
-    PassJsonAdapter json = new PassJsonAdapterBasic();
+    private PassClient passClient = PassClientFactory.getPassClient();
+    private PassJsonAdapter json = new PassJsonAdapterBasic();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+            throws IOException {
 
         StringBuffer stringBuffer = new StringBuffer();
         String line;
@@ -215,7 +214,7 @@ public class PassJournalService extends HttpServlet {
 
         static Host of(HttpServletRequest request, URI defaults) {
             final String host = request.getHeader("host");
-            if (host != null && host != "") {
+            if (host != null && !host.equals("")) {
                 return new Host(host);
             } else {
                 if (request.getRequestURL() != null) {
