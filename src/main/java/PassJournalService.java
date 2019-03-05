@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -50,9 +51,9 @@ public class PassJournalService extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        //System.out.println("MyServlet's doGet() method is invoked.");
+
         StringBuffer stringBuffer = new StringBuffer();
-        String line = null;
+        String line;
 
         BufferedReader reader = request.getReader();
         while ((line = reader.readLine()) != null) {
@@ -64,6 +65,9 @@ public class PassJournalService extends HttpServlet {
 
         response.setContentType("application/json");
         response.setCharacterEncoding("utf-8");
+
+        rewriteUri(journal, request);
+
         try (OutputStream out = response.getOutputStream()) {
             out.write(json.toJson(journal, true));
             response.setStatus(200);
@@ -163,4 +167,94 @@ public class PassJournalService extends HttpServlet {
         }
         return passJournal;
     }
+
+    private void rewriteUri(Journal journal, HttpServletRequest request) {
+
+        final Protocol proto = Protocol.of(request, journal.getId());
+        final Host host = Host.of(request, journal.getId());
+
+        final URI u = journal.getId();
+
+        try {
+            journal.setId(new URI(
+                    proto.get(),
+                    u.getUserInfo(),
+                    host.getHost(),
+                    host.getPort(),
+                    u.getPath(),
+                    u.getQuery(),
+                    u.getFragment()));
+        } catch (final URISyntaxException e) {
+            throw new RuntimeException("Error rewriting URI " + journal.getId());
+        }
+
+    }
+
+    private static class Host {
+
+        final String host;
+
+        final int port;
+
+        static Host of(HttpServletRequest request, URI defaults) {
+            final String host = request.getHeader("host");
+            if (host != null && host != "") {
+                return new Host(host);
+            } else {
+                if (request.getRequestURL() != null) {
+                    return new Host(URI.create(request.getRequestURL().toString()).getHost());
+                } else {
+                    return new Host(defaults.getHost(), defaults.getPort());
+                }
+            }
+        }
+
+        private Host(String host, int port) {
+            this.host = host;
+            this.port = port;
+        }
+
+        private Host(String hostname) {
+            if (hostname.contains(":")) {
+                final String[] parts = hostname.split(":");
+                host = parts[0];
+                port = Integer.valueOf(parts[1]);
+            } else {
+                host = hostname;
+                port = -1;
+            }
+        }
+
+        String getHost() {
+            return host;
+        }
+
+        int getPort() {
+            return port;
+        }
+    }
+
+    private static class Protocol {
+
+        final String proto;
+
+        static Protocol of(HttpServletRequest request, URI defaults) {
+            if (request.getHeader("X-Forwarded-Proto") != null) {
+                return new Protocol(request.getHeader("X-Forwarded-Proto"));
+            } else if (request.getRequestURL() != null) {
+                return new Protocol(URI.create(request.getRequestURL().toString()).getScheme());
+            } else {
+                return new Protocol(defaults.getScheme());
+            }
+        }
+
+        private Protocol(String proto) {
+            this.proto = proto;
+        }
+
+        String get() {
+            return proto;
+        }
+    }
+
 }
