@@ -61,7 +61,7 @@ public class PassJournalService extends HttpServlet {
 
         Journal journal = buildPassJournal(stringBuffer.toString());
         journal = updateJournalinPass(journal);
-        
+
         response.setContentType("application/json");
         response.setCharacterEncoding("utf-8");
         try (OutputStream out = response.getOutputStream()) {
