@@ -16,64 +16,195 @@
  */
 
 import org.dataconservancy.pass.client.PassClient;
+import org.dataconservancy.pass.client.PassJsonAdapter;
+import org.dataconservancy.pass.client.adapter.PassJsonAdapterBasic;
 import org.dataconservancy.pass.model.Journal;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import javax.servlet.ServletOutputStream;
+import javax.servlet.WriteListener;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PassJournalServiceTest {
 
-    @Mock
-    private PassClient passClientMock;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    PassJournalService underTest = new PassJournalService();
+    @Mock
+    private HttpServletRequest request;
+
+    @Mock
+    private HttpServletResponse response;
+
+    @Mock
+    PassClient passClientMock;
+
+    private PassJournalService underTest;
+
+    ByteArrayOutputStream output;
+
+    private PassJsonAdapter json = new PassJsonAdapterBasic();
+
+    private URI newJournalId =  URI.create("newlyCreatedId");
+
+    private Journal completeJournal;
+    private Journal missingNameJournal;
+    private Journal missingOneIssnJournal;
+
+    private String issn1 = String.join(":", IssnType.PRINT.getPassTypeString(), "0000-0001");
+    private String issn2 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0002");
+
+    private String issn3 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0003");
+    private String issn4 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0004");
+
+
+    private String issn5 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0005");
+    private String issn6 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0006");
+
+    private URI completeId = URI.create("http://example.org:2020/" + UUID.randomUUID().toString());
+    private URI missingNameId = URI.create("http://example.org:2020/" + UUID.randomUUID().toString());
+    private URI missingOneIssnId = URI.create("http://example.org:2020/" + UUID.randomUUID().toString());
+
+    private String nlmta = "Irrelevant Data Item";
+    private String journalName = "Fancy Journal";
+
+    //a real-life JSON metadata response for a DOI, from Crossref
+    String xrefJson = "{\"status\":\"ok\",\"message-type\":\"work\",\"message-version\":\"1.0.0\",\"message\":" +
+            "{\"indexed\":{\"date-parts\":[[2018,9,11]],\"date-time\":\"2018-09-11T22:02:39Z\",\"timestamp\":" +
+            "1536703359538},\"reference-count\":74,\"publisher\":\"SAGE Publications\",\"license\":[{\"URL\":" +
+            "\"http:\\/\\/journals.sagepub.com\\/page\\/policies\\/text-and-data-mining-license\",\"start\":" +
+            "{\"date-parts\":[[2016,1,1]],\"date-time\":\"2016-01-01T00:00:00Z\",\"timestamp\":" +
+            "1451606400000},\"delay-in-days\":0,\"content-version\":\"tdm\"}],\"content-domain\":{\"domain\":" +
+            "[\"journals.sagepub.com\"],\"crossmark-restriction\":true},\"short-container-title\":" +
+            "[\"Clinical Medicine Insights: Cardiology\"],\"published-print\":{\"date-parts\":" +
+            "[[2016,1]]},\"DOI\":\"10.4137\\/cmc.s38446\",\"type\":\"journal-article\",\"created\":" +
+            "{\"date-parts\":[[2016,10,19]],\"date-time\":\"2016-10-19T21:18:54Z\",\"timestamp\":" +
+            "1476911934000},\"page\":\"CMC.S38446\",\"update-policy\":" +
+            "\"http:\\/\\/dx.doi.org\\/10.1177\\/sage-journals-update-policy\",\"source\":" +
+            "\"Crossref\",\"is-referenced-by-count\":1,\"title\":" +
+            "[\"Arrhythmogenic Right Ventricular Dysplasia in Neuromuscular Disorders\"],\"prefix\":" +
+            "\"10.4137\",\"volume\":\"10\",\"author\":[{\"given\":\"Josef\",\"family\":\"Finsterer\",\"sequence\":" +
+            "\"first\",\"affiliation\":[{\"name\":\"Krankenanstalt Rudolfstiftung, Vienna, Austria.\"}]},{\"given\":" +
+            "\"Claudia\",\"family\":\"St\\u00f6llberger\",\"sequence\":\"additional\",\"affiliation\":[{\"name\":" +
+            "\"Krankenanstalt Rudolfstiftung, Vienna, Austria.\"}]}],\"member\":\"179\",\"published-online\":" +
+            "{\"date-parts\":[[2016,10,19]]},\"container-title\":[\"Clinical Medicine Insights: Cardiology\"],\"original-title\":" +
+            "[],\"language\":\"en\",\"link\":[{\"URL\":\"http:\\/\\/journals.sagepub.com\\/doi\\/pdf\\/10.4137\\/CMC.S38446\",\"content-type\":" +
+            "\"application\\/pdf\",\"content-version\":\"vor\",\"intended-application\":\"text-mining\"},{\"URL\":" +
+            "\"http:\\/\\/journals.sagepub.com\\/doi\\/full-xml\\/10.4137\\/CMC.S38446\",\"content-type\":\"application\\/xml\",\"content-version\":" +
+            "\"vor\",\"intended-application\":\"text-mining\"},{\"URL\":" +
+            "\"http:\\/\\/journals.sagepub.com\\/doi\\/pdf\\/10.4137\\/CMC.S38446\",\"content-type\":\"unspecified\",\"content-version\":" +
+            "\"vor\",\"intended-application\":\"similarity-checking\"}],\"deposited\":{\"date-parts\":[[2017,12,13]],\"date-time\":" +
+            "\"2017-12-13T00:51:44Z\",\"timestamp\":1513126304000},\"score\":1.0,\"subtitle\":[],\"short-title\":[],\"issued\":" +
+            "{\"date-parts\":[[2016,1]]},\"references-count\":74,\"alternative-id\":[\"10.4137\\/CMC.S38446\"],\"URL\":" +
+            "\"http:\\/\\/dx.doi.org\\/10.4137\\/cmc.s38446\",\"relation\":{},\"ISSN\":[\"1179-5468\",\"1179-5468\"],\"issn-type\":[{\"value\":" +
+            "\"1179-5468\",\"type\":\"print\"},{\"value\":\"1179-5468\",\"type\":\"electronic\"}]}}";
+
+
+    @Before
+    public void setUp() throws Exception {
+
+        List<String> issnListComplete = new ArrayList<>();
+        issnListComplete.add(issn1);
+        issnListComplete.add(issn2);
+
+        List<String> issnListMissingName = new ArrayList<>();
+        issnListMissingName.add(issn3);
+        issnListMissingName.add(issn4);
+
+        List<String> issnListOneIssn = new ArrayList<>();
+        issnListOneIssn.add(issn5);
+
+
+        completeJournal = new Journal();
+        completeJournal.setId(completeId);
+        completeJournal.setName(journalName);
+
+        completeJournal.setNlmta(nlmta);
+        completeJournal.setIssns(issnListComplete);
+
+        missingNameJournal = new Journal();
+        missingNameJournal.setId(missingNameId);
+        missingNameJournal.setNlmta(nlmta);
+        missingNameJournal.setIssns(issnListMissingName);
+
+        missingOneIssnJournal = new Journal();
+        missingOneIssnJournal.setId(missingOneIssnId);
+        missingOneIssnJournal.setNlmta(nlmta);
+        missingOneIssnJournal.setName(journalName);
+        missingOneIssnJournal.setIssns(issnListOneIssn);
+
+
+        when(passClientMock.createAndReadResource(any(), eq(Journal.class))).thenAnswer(i -> {
+            final Journal givenJournalToCreate = i.getArgument(0);
+            givenJournalToCreate.setId(newJournalId);
+            return givenJournalToCreate;
+        });
+
+        when(passClientMock.findByAttribute(Journal.class, "issns", issn1)).thenReturn(completeId);
+        when(passClientMock.findByAttribute(Journal.class, "issns", issn2)).thenReturn(completeId);
+
+        when(passClientMock.findByAttribute(Journal.class, "issns", issn3)).thenReturn(missingNameId);
+        when(passClientMock.findByAttribute(Journal.class, "issns", issn4)).thenReturn(missingNameId);
+
+        when(passClientMock.findByAttribute(Journal.class, "issns", issn5)).thenReturn(missingOneIssnId);
+
+
+        when(passClientMock.readResource(completeId, Journal.class)).thenReturn(completeJournal);
+        when(passClientMock.readResource(missingNameId, Journal.class)).thenReturn(missingNameJournal);
+        when(passClientMock.readResource(missingOneIssnId, Journal.class)).thenReturn(missingOneIssnJournal);
+
+        output = new ByteArrayOutputStream();
+
+        when(response.getWriter()).thenReturn(new PrintWriter(output));
+
+        when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
+
+            @Override
+            public void write(int b) throws IOException {
+                output.write(b);
+
+            }
+
+            @Override
+            public void setWriteListener(WriteListener writeListener) {
+                // don't care
+            }
+
+            @Override
+            public boolean isReady() {
+                return true;
+            }
+        });
+
+        underTest = new PassJournalService();
+        underTest.passClient = passClientMock;
+        underTest.json = json;
+
+    }
+
 
     @Test
-    public void testBuildPassJournal() {
-
-        //a real-life JSON metadata response for a DOI, from Crossref
-        String json = "{\"status\":\"ok\",\"message-type\":\"work\",\"message-version\":\"1.0.0\",\"message\":" +
-                "{\"indexed\":{\"date-parts\":[[2018,9,11]],\"date-time\":\"2018-09-11T22:02:39Z\",\"timestamp\":" +
-                "1536703359538},\"reference-count\":74,\"publisher\":\"SAGE Publications\",\"license\":[{\"URL\":" +
-                "\"http:\\/\\/journals.sagepub.com\\/page\\/policies\\/text-and-data-mining-license\",\"start\":" +
-                "{\"date-parts\":[[2016,1,1]],\"date-time\":\"2016-01-01T00:00:00Z\",\"timestamp\":" +
-                "1451606400000},\"delay-in-days\":0,\"content-version\":\"tdm\"}],\"content-domain\":{\"domain\":" +
-                "[\"journals.sagepub.com\"],\"crossmark-restriction\":true},\"short-container-title\":" +
-                "[\"Clinical Medicine Insights: Cardiology\"],\"published-print\":{\"date-parts\":" +
-                "[[2016,1]]},\"DOI\":\"10.4137\\/cmc.s38446\",\"type\":\"journal-article\",\"created\":" +
-                "{\"date-parts\":[[2016,10,19]],\"date-time\":\"2016-10-19T21:18:54Z\",\"timestamp\":" +
-                "1476911934000},\"page\":\"CMC.S38446\",\"update-policy\":" +
-                "\"http:\\/\\/dx.doi.org\\/10.1177\\/sage-journals-update-policy\",\"source\":" +
-                "\"Crossref\",\"is-referenced-by-count\":1,\"title\":" +
-                "[\"Arrhythmogenic Right Ventricular Dysplasia in Neuromuscular Disorders\"],\"prefix\":" +
-                "\"10.4137\",\"volume\":\"10\",\"author\":[{\"given\":\"Josef\",\"family\":\"Finsterer\",\"sequence\":" +
-                "\"first\",\"affiliation\":[{\"name\":\"Krankenanstalt Rudolfstiftung, Vienna, Austria.\"}]},{\"given\":" +
-                "\"Claudia\",\"family\":\"St\\u00f6llberger\",\"sequence\":\"additional\",\"affiliation\":[{\"name\":" +
-                "\"Krankenanstalt Rudolfstiftung, Vienna, Austria.\"}]}],\"member\":\"179\",\"published-online\":" +
-                "{\"date-parts\":[[2016,10,19]]},\"container-title\":[\"Clinical Medicine Insights: Cardiology\"],\"original-title\":" +
-                "[],\"language\":\"en\",\"link\":[{\"URL\":\"http:\\/\\/journals.sagepub.com\\/doi\\/pdf\\/10.4137\\/CMC.S38446\",\"content-type\":" +
-                "\"application\\/pdf\",\"content-version\":\"vor\",\"intended-application\":\"text-mining\"},{\"URL\":" +
-                "\"http:\\/\\/journals.sagepub.com\\/doi\\/full-xml\\/10.4137\\/CMC.S38446\",\"content-type\":\"application\\/xml\",\"content-version\":" +
-                "\"vor\",\"intended-application\":\"text-mining\"},{\"URL\":" +
-                "\"http:\\/\\/journals.sagepub.com\\/doi\\/pdf\\/10.4137\\/CMC.S38446\",\"content-type\":\"unspecified\",\"content-version\":" +
-                "\"vor\",\"intended-application\":\"similarity-checking\"}],\"deposited\":{\"date-parts\":[[2017,12,13]],\"date-time\":" +
-                "\"2017-12-13T00:51:44Z\",\"timestamp\":1513126304000},\"score\":1.0,\"subtitle\":[],\"short-title\":[],\"issued\":" +
-                "{\"date-parts\":[[2016,1]]},\"references-count\":74,\"alternative-id\":[\"10.4137\\/CMC.S38446\"],\"URL\":" +
-                "\"http:\\/\\/dx.doi.org\\/10.4137\\/cmc.s38446\",\"relation\":{},\"ISSN\":[\"1179-5468\",\"1179-5468\"],\"issn-type\":[{\"value\":" +
-                "\"1179-5468\",\"type\":\"print\"},{\"value\":\"1179-5468\",\"type\":\"electronic\"}]}}";
-
-
-        Journal passJournal = underTest.buildPassJournal(json);
+    public void buildPassJournalTest() {
+        Journal passJournal = underTest.buildPassJournal(xrefJson);
 
         Assert.assertEquals("Clinical Medicine Insights: Cardiology", passJournal.getName());
         Assert.assertEquals(2, passJournal.getIssns().size());
@@ -83,45 +214,88 @@ public class PassJournalServiceTest {
     }
 
     @Test
-    public void testupdateJournalInPass() {
-        URI journalUri = URI.create("journal");
-        String journalName = "Fancy Journal";
-        String issn1 = String.join(":", IssnType.PRINT.getPassTypeString(), "0000-0001");
-        String issn2 = String.join(":", IssnType.ELECTRONIC.getPassTypeString(), "0000-0002");
-        List<String> issnList = new ArrayList<>();
-        issnList.add(issn1);
-        issnList.add(issn2);
+    public void updateJournalInPassTest() {
+
+        //first test that if a journal is not found, that a new one is created:
+        Journal xrefJournal = new Journal();
+        xrefJournal.getIssns().add("MOO");
+        xrefJournal.setName("Advanced Research in Animal Husbandry");
+
+        Journal newJournal = underTest.updateJournalInPass(xrefJournal);
+
+        Assert.assertEquals(xrefJournal.getIssns(), newJournal.getIssns());
+        Assert.assertEquals(xrefJournal.getName(), newJournal.getName());
+
+        //test that a journal not needing an update does not change in PASS
+        xrefJournal = new Journal();
+        xrefJournal.getIssns().add(issn1);
+        xrefJournal.getIssns().add(issn2);
+        xrefJournal.setName(journalName);
+
+        newJournal = underTest.updateJournalInPass(xrefJournal);
+        Assert.assertEquals(completeJournal.getName(), newJournal.getName());
+        Assert.assertEquals(completeJournal.getIssns(), newJournal.getIssns());
+        Assert.assertEquals(completeJournal.getNlmta(), newJournal.getNlmta());
+
+        //test that an overwrite does not happen if a name or nlmta value in the xref journal
+        //is different from the pass journal (also check that we can find the journal in PASS
+        //from its second issn)
+        xrefJournal = new Journal();
+        xrefJournal.getIssns().add(issn2);
+        xrefJournal.setName("Advanced Research in Animal Husbandry");
+
+        newJournal = underTest.updateJournalInPass(xrefJournal);
+        Assert.assertEquals(completeJournal.getId(), newJournal.getId());
+        Assert.assertEquals(completeJournal.getName(), newJournal.getName());
+        Assert.assertEquals(2, completeJournal.getIssns().size());
+        Assert.assertTrue(completeJournal.getIssns().contains(issn1));
+        Assert.assertTrue(completeJournal.getIssns().contains(issn1));
+        Assert.assertEquals(completeJournal.getNlmta(), newJournal.getNlmta());
 
 
-        String nlmta = "Irrelevant Data Item";
+        //test that a Pass journal missing its name will get it populated from the xref journal
+        xrefJournal = new Journal();
+        xrefJournal.getIssns().add(issn3);
+        xrefJournal.getIssns().add(issn4);
+        xrefJournal.setName("Advanced Research in Animal Husbandry");
 
-        Journal completeJournal = new Journal();
-        completeJournal.setName(journalName);
-        completeJournal.setNlmta(nlmta);
-        completeJournal.setIssns(issnList);
+        newJournal = underTest.updateJournalInPass(xrefJournal);
+        Assert.assertEquals(missingNameJournal.getIssns(), newJournal.getIssns());
+        Assert.assertEquals(xrefJournal.getName(), newJournal.getName());
+        Assert.assertEquals(nlmta, newJournal.getNlmta());
 
-        Journal missingNameJournal = new Journal();
-        missingNameJournal.setNlmta(nlmta);
-        missingNameJournal.setIssns(issnList);
+        //test that a Pass journal with only one issn will have a second one added if the xref journal has two
+        xrefJournal = new Journal();
+        xrefJournal.getIssns().add(issn5);
+        xrefJournal.getIssns().add(issn6);
 
-        Journal missingOneIssnJournal = new Journal();
-        missingOneIssnJournal.setNlmta(nlmta);
-        missingOneIssnJournal.setName(journalName);
-        missingOneIssnJournal.getIssns().add(issn1);
-
-        Journal crossrefJournal = new Journal();
-        crossrefJournal.setName(journalName);
-        crossrefJournal.setIssns(issnList);
-
-        when(passClientMock.createResource(any(Journal.class))).thenReturn(journalUri);
-
-        //test that a complete journal doesn't change upon update
-        when(passClientMock.findByAttribute(Journal.class, "issns", issn1)).thenReturn(journalUri);
-        when(passClientMock.readResource(journalUri, Journal.class)).thenReturn(completeJournal);
-        Journal returnedJournal = underTest.updateJournalInPass(crossrefJournal);
+        newJournal = underTest.updateJournalInPass(xrefJournal);//issn5 belongs to the Journal with only one issn
+        Assert.assertEquals(2, xrefJournal.getIssns().size());
+        Assert.assertEquals(2, newJournal.getIssns().size());
+        Assert.assertEquals(nlmta, newJournal.getNlmta());
 
 
+        //test that an xref journal with only one issn will find its match in a pass journal containing two issns
+        xrefJournal = new Journal();
+        xrefJournal.getIssns().add(issn4);
+        xrefJournal.setName("Advanced Research in Animal Husbandry");
+
+        newJournal = underTest.updateJournalInPass(xrefJournal);
+        Assert.assertEquals(2,newJournal.getIssns().size());
+        Assert.assertEquals(nlmta, newJournal.getNlmta());
 
     }
 
+    @Test
+    public void servletTest() throws  Exception{
+
+
+
+        underTest.doGet(request, response);
+
+        final Journal fromServlet = mapper.reader().treeToValue(mapper.readTree(new String(output.toByteArray())),
+                Journal.class);
+
+        System.out.println(fromServlet.toString());
+    }
 }
