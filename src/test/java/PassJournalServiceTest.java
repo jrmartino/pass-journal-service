@@ -18,7 +18,6 @@
 import org.dataconservancy.pass.client.PassClient;
 import org.dataconservancy.pass.model.Journal;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -119,7 +118,7 @@ public class PassJournalServiceTest {
         //test that a complete journal doesn't change upon update
         when(passClientMock.findByAttribute(Journal.class, "issns", issn1)).thenReturn(journalUri);
         when(passClientMock.readResource(journalUri, Journal.class)).thenReturn(completeJournal);
-        Journal returnedJournal = underTest.updateJournalinPass(crossrefJournal);
+        Journal returnedJournal = underTest.updateJournalInPass(crossrefJournal);
 
 
 
