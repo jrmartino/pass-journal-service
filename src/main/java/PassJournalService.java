@@ -47,7 +47,7 @@ import java.util.stream.Stream;
  */
 public class PassJournalService extends HttpServlet {
 
-    static final Logger LOG = LoggerFactory.getLogger(PassJournalService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PassJournalService.class);
 
     PassClient passClient = PassClientFactory.getPassClient();
     PassJsonAdapter json = new PassJsonAdapterBasic();

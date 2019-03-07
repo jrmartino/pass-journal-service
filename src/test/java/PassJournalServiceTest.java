@@ -19,7 +19,6 @@ import org.dataconservancy.pass.client.PassClient;
 import org.dataconservancy.pass.client.PassJsonAdapter;
 import org.dataconservancy.pass.client.adapter.PassJsonAdapterBasic;
 import org.dataconservancy.pass.model.Journal;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,8 +31,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -184,7 +181,7 @@ public class PassJournalServiceTest {
         when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
 
             @Override
-            public void write(int b) throws IOException {
+            public void write(int b) {
                 output.write(b);
 
             }
@@ -300,13 +297,13 @@ public class PassJournalServiceTest {
     /**
      * We test that an actual JSON serialization of crossref metadata which does not correspond to an object in
      * our mocked PASS data generates a new Pass journal object
-     * @throws Exception
+     * @throws Exception in production if an object cannot be resolved from its id
      */
     @Test
     public void servletTest() throws  Exception {
 
         when(mockReader.readLine()).thenReturn(xrefJson, null);
-        when(passClientMock.findByAttribute(Journal.class, "issns", "Print:1179-5468")).thenReturn(null);;
+        when(passClientMock.findByAttribute(Journal.class, "issns", "Print:1179-5468")).thenReturn(null);
 
         underTest.doPost(request, response);
 
