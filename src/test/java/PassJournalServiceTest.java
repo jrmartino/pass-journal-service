@@ -30,6 +30,7 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.WriteListener;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -40,9 +41,11 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PassJournalServiceTest {
@@ -58,9 +61,12 @@ public class PassJournalServiceTest {
     @Mock
     PassClient passClientMock;
 
+    @Mock
+    BufferedReader mockReader;
+
     private PassJournalService underTest;
 
-    ByteArrayOutputStream output;
+    private ByteArrayOutputStream output;
 
     private PassJsonAdapter json = new PassJsonAdapterBasic();
 
@@ -88,7 +94,7 @@ public class PassJournalServiceTest {
     private String journalName = "Fancy Journal";
 
     //a real-life JSON metadata response for a DOI, from Crossref
-    String xrefJson = "{\"status\":\"ok\",\"message-type\":\"work\",\"message-version\":\"1.0.0\",\"message\":" +
+    private String xrefJson = "{\"status\":\"ok\",\"message-type\":\"work\",\"message-version\":\"1.0.0\",\"message\":" +
             "{\"indexed\":{\"date-parts\":[[2018,9,11]],\"date-time\":\"2018-09-11T22:02:39Z\",\"timestamp\":" +
             "1536703359538},\"reference-count\":74,\"publisher\":\"SAGE Publications\",\"license\":[{\"URL\":" +
             "\"http:\\/\\/journals.sagepub.com\\/page\\/policies\\/text-and-data-mining-license\",\"start\":" +
@@ -117,6 +123,7 @@ public class PassJournalServiceTest {
             "{\"date-parts\":[[2016,1]]},\"references-count\":74,\"alternative-id\":[\"10.4137\\/CMC.S38446\"],\"URL\":" +
             "\"http:\\/\\/dx.doi.org\\/10.4137\\/cmc.s38446\",\"relation\":{},\"ISSN\":[\"1179-5468\",\"1179-5468\"],\"issn-type\":[{\"value\":" +
             "\"1179-5468\",\"type\":\"print\"},{\"value\":\"1179-5468\",\"type\":\"electronic\"}]}}";
+
 
 
     @Before
@@ -161,10 +168,8 @@ public class PassJournalServiceTest {
 
         when(passClientMock.findByAttribute(Journal.class, "issns", issn1)).thenReturn(completeId);
         when(passClientMock.findByAttribute(Journal.class, "issns", issn2)).thenReturn(completeId);
-
         when(passClientMock.findByAttribute(Journal.class, "issns", issn3)).thenReturn(missingNameId);
         when(passClientMock.findByAttribute(Journal.class, "issns", issn4)).thenReturn(missingNameId);
-
         when(passClientMock.findByAttribute(Journal.class, "issns", issn5)).thenReturn(missingOneIssnId);
 
 
@@ -174,7 +179,7 @@ public class PassJournalServiceTest {
 
         output = new ByteArrayOutputStream();
 
-        when(response.getWriter()).thenReturn(new PrintWriter(output));
+        when(request.getReader()).thenReturn(mockReader);
 
         when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
 
@@ -202,17 +207,23 @@ public class PassJournalServiceTest {
     }
 
 
+    /**
+     * We test that JSON metadata for a journal article populates a PASS Journal object as expected
+     */
     @Test
     public void buildPassJournalTest() {
         Journal passJournal = underTest.buildPassJournal(xrefJson);
 
-        Assert.assertEquals("Clinical Medicine Insights: Cardiology", passJournal.getName());
-        Assert.assertEquals(2, passJournal.getIssns().size());
-        Assert.assertTrue(passJournal.getIssns().contains("Print:1179-5468"));
-        Assert.assertTrue(passJournal.getIssns().contains("Online:1179-5468"));
+        assertEquals("Clinical Medicine Insights: Cardiology", passJournal.getName());
+        assertEquals(2, passJournal.getIssns().size());
+        assertTrue(passJournal.getIssns().contains("Print:1179-5468"));
+        assertTrue(passJournal.getIssns().contains("Online:1179-5468"));
 
     }
 
+    /**
+     * we test the update method to make sure journals with various characteristics behave as expected
+     */
     @Test
     public void updateJournalInPassTest() {
 
@@ -223,8 +234,8 @@ public class PassJournalServiceTest {
 
         Journal newJournal = underTest.updateJournalInPass(xrefJournal);
 
-        Assert.assertEquals(xrefJournal.getIssns(), newJournal.getIssns());
-        Assert.assertEquals(xrefJournal.getName(), newJournal.getName());
+        assertEquals(xrefJournal.getIssns(), newJournal.getIssns());
+        assertEquals(xrefJournal.getName(), newJournal.getName());
 
         //test that a journal not needing an update does not change in PASS
         xrefJournal = new Journal();
@@ -233,9 +244,9 @@ public class PassJournalServiceTest {
         xrefJournal.setName(journalName);
 
         newJournal = underTest.updateJournalInPass(xrefJournal);
-        Assert.assertEquals(completeJournal.getName(), newJournal.getName());
-        Assert.assertEquals(completeJournal.getIssns(), newJournal.getIssns());
-        Assert.assertEquals(completeJournal.getNlmta(), newJournal.getNlmta());
+        assertEquals(completeJournal.getName(), newJournal.getName());
+        assertEquals(completeJournal.getIssns(), newJournal.getIssns());
+        assertEquals(completeJournal.getNlmta(), newJournal.getNlmta());
 
         //test that an overwrite does not happen if a name or nlmta value in the xref journal
         //is different from the pass journal (also check that we can find the journal in PASS
@@ -245,12 +256,12 @@ public class PassJournalServiceTest {
         xrefJournal.setName("Advanced Research in Animal Husbandry");
 
         newJournal = underTest.updateJournalInPass(xrefJournal);
-        Assert.assertEquals(completeJournal.getId(), newJournal.getId());
-        Assert.assertEquals(completeJournal.getName(), newJournal.getName());
-        Assert.assertEquals(2, completeJournal.getIssns().size());
-        Assert.assertTrue(completeJournal.getIssns().contains(issn1));
-        Assert.assertTrue(completeJournal.getIssns().contains(issn1));
-        Assert.assertEquals(completeJournal.getNlmta(), newJournal.getNlmta());
+        assertEquals(completeJournal.getId(), newJournal.getId());
+        assertEquals(completeJournal.getName(), newJournal.getName());
+        assertEquals(2, completeJournal.getIssns().size());
+        assertTrue(completeJournal.getIssns().contains(issn1));
+        assertTrue(completeJournal.getIssns().contains(issn1));
+        assertEquals(completeJournal.getNlmta(), newJournal.getNlmta());
 
 
         //test that a Pass journal missing its name will get it populated from the xref journal
@@ -260,9 +271,9 @@ public class PassJournalServiceTest {
         xrefJournal.setName("Advanced Research in Animal Husbandry");
 
         newJournal = underTest.updateJournalInPass(xrefJournal);
-        Assert.assertEquals(missingNameJournal.getIssns(), newJournal.getIssns());
-        Assert.assertEquals(xrefJournal.getName(), newJournal.getName());
-        Assert.assertEquals(nlmta, newJournal.getNlmta());
+        assertEquals(missingNameJournal.getIssns(), newJournal.getIssns());
+        assertEquals(xrefJournal.getName(), newJournal.getName());
+        assertEquals(nlmta, newJournal.getNlmta());
 
         //test that a Pass journal with only one issn will have a second one added if the xref journal has two
         xrefJournal = new Journal();
@@ -270,9 +281,9 @@ public class PassJournalServiceTest {
         xrefJournal.getIssns().add(issn6);
 
         newJournal = underTest.updateJournalInPass(xrefJournal);//issn5 belongs to the Journal with only one issn
-        Assert.assertEquals(2, xrefJournal.getIssns().size());
-        Assert.assertEquals(2, newJournal.getIssns().size());
-        Assert.assertEquals(nlmta, newJournal.getNlmta());
+        assertEquals(2, xrefJournal.getIssns().size());
+        assertEquals(2, newJournal.getIssns().size());
+        assertEquals(nlmta, newJournal.getNlmta());
 
 
         //test that an xref journal with only one issn will find its match in a pass journal containing two issns
@@ -281,21 +292,107 @@ public class PassJournalServiceTest {
         xrefJournal.setName("Advanced Research in Animal Husbandry");
 
         newJournal = underTest.updateJournalInPass(xrefJournal);
-        Assert.assertEquals(2,newJournal.getIssns().size());
-        Assert.assertEquals(nlmta, newJournal.getNlmta());
+        assertEquals(2,newJournal.getIssns().size());
+        assertEquals(nlmta, newJournal.getNlmta());
 
     }
 
+    /**
+     * We test that an actual JSON serialization of crossref metadata which does not correspond to an object in
+     * our mocked PASS data generates a new Pass journal object
+     * @throws Exception
+     */
     @Test
-    public void servletTest() throws  Exception{
+    public void servletTest() throws  Exception {
 
+        when(mockReader.readLine()).thenReturn(xrefJson, null);
+        when(passClientMock.findByAttribute(Journal.class, "issns", "Print:1179-5468")).thenReturn(null);;
 
-
-        underTest.doGet(request, response);
+        underTest.doPost(request, response);
 
         final Journal fromServlet = mapper.reader().treeToValue(mapper.readTree(new String(output.toByteArray())),
                 Journal.class);
 
-        System.out.println(fromServlet.toString());
+        assertEquals("Clinical Medicine Insights: Cardiology", fromServlet.getName());
+        assertEquals(2, fromServlet.getIssns().size());
+        assertTrue(fromServlet.getIssns().contains("Print:1179-5468"));
+        assertTrue(fromServlet.getIssns().contains("Online:1179-5468"));
+
+        verify(response, times(1)).setStatus(eq(200));
+        assertOutputEquals(fromServlet);
+    }
+
+    /**
+     * We test that metadata which has a matching issn in our mocked PASS data which is complete, does not change the
+     * data we have.
+     * @throws Exception in production if an object cannot be resolved from its id
+     */
+    @Test
+    public void noChangeTest() throws Exception {
+
+        String xrefJsonNoChange = xrefJson.replaceAll("1179-5468", "0000-0002");
+        when(mockReader.readLine()).thenReturn(xrefJsonNoChange, null);
+
+        underTest.doPost(request, response);
+
+        final Journal fromServlet = mapper.reader().treeToValue(mapper.readTree(new String(output.toByteArray())),
+                Journal.class);
+
+        assertEquals(completeJournal, fromServlet);
+        verify(response, times(1)).setStatus(eq(200));
+        assertOutputEquals(fromServlet);
+    }
+
+    /**
+     * We test that metadata going into the servlet and matches a journal missing a name, puts the metadata name onto
+     * the PASS journal
+     * @throws Exception in production if an object cannot be resolved from its id
+     */
+    @Test
+    public void addNameTest() throws Exception {
+
+        String xrefJsonAddTitle = xrefJson.replaceAll("1179-5468", "0000-0003");
+
+        when(mockReader.readLine()).thenReturn(xrefJsonAddTitle, null);
+
+        underTest.doPost(request, response);
+
+        final Journal fromServlet = mapper.reader().treeToValue(mapper.readTree(new String(output.toByteArray())),
+                Journal.class);
+
+        assertEquals("Clinical Medicine Insights: Cardiology", fromServlet.getName());
+        assertEquals(missingNameJournal.getIssns(), fromServlet.getIssns());
+        verify(response, times(1)).setStatus(eq(200));
+        assertOutputEquals(fromServlet);
+    }
+
+    /**
+     *  We test that going into the servlet and having more issns than its matching Pass journal adds the missing issn
+     *  to the PASS journal
+     * @throws Exception in production if an object cannot be resolved from its id
+     */
+    @Test
+    public void addIssnTest() throws Exception {
+
+        String xrefJsonAddIssn = xrefJson.replaceAll("1179-5468", "0000-0005");
+        when(mockReader.readLine()).thenReturn(xrefJsonAddIssn, null);
+
+        underTest.doPost(request, response);
+
+        final Journal fromServlet = mapper.reader().treeToValue(mapper.readTree(new String(output.toByteArray())),
+                Journal.class);
+
+        assertEquals(completeJournal.getName(), fromServlet.getName());
+        assertEquals(2, fromServlet.getIssns().size());
+        assertTrue(fromServlet.getIssns().contains(issn5));
+        assertTrue(fromServlet.getIssns().contains("Online:0000-0005"));
+        verify(response, times(1)).setStatus(eq(200));
+        assertOutputEquals(fromServlet);
+    }
+
+    private void assertOutputEquals(Journal journal) {
+        final Journal fromOut = json.toModel(output.toByteArray(), Journal.class);
+        fromOut.setContext(journal.getContext());
+        assertEquals(journal, fromOut);
     }
 }

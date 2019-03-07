@@ -60,8 +60,13 @@ public class PassJournalService extends HttpServlet {
     }
 
     @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+
+        response.setContentType("application/json");
+        response.setCharacterEncoding("utf-8");
+
+        LOG.debug("Servicing new request");
 
         StringBuffer stringBuffer = new StringBuffer();
         String line;
@@ -83,10 +88,6 @@ public class PassJournalService extends HttpServlet {
             out.write(json.toJson(journal, true));
             response.setStatus(200);
         }
-
-
-        LOG.debug("Servicing new request");
-
     }
 
     /**
@@ -123,7 +124,7 @@ public class PassJournalService extends HttpServlet {
 
             String type="";
 
-            //translate crossref type strings to PASS type strings
+            //translate crossref issn-type strings to PASS issn-type strings
             if (IssnType.PRINT.getCrossrefTypeString().equals(issn.getString(XREF_ISSN_TYPE))) {
                 type = IssnType.PRINT.getPassTypeString();
             } else if (IssnType.ELECTRONIC.getCrossrefTypeString().equals(issn.getString(XREF_ISSN_TYPE))) {
