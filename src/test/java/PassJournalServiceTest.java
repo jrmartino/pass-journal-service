@@ -32,14 +32,11 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -67,7 +64,7 @@ public class PassJournalServiceTest {
 
     private PassJsonAdapter json = new PassJsonAdapterBasic();
 
-    private URI newJournalId =  URI.create("newlyCreatedId");
+    private URI newJournalId = URI.create("newlyCreatedId");
 
     private Journal completeJournal;
     private Journal missingNameJournal;
@@ -122,7 +119,6 @@ public class PassJournalServiceTest {
             "\"1179-5468\",\"type\":\"print\"},{\"value\":\"1179-5468\",\"type\":\"electronic\"}]}}";
 
 
-
     @Before
     public void setUp() throws Exception {
 
@@ -163,11 +159,11 @@ public class PassJournalServiceTest {
             return givenJournalToCreate;
         });
 
-        when(passClientMock.findByAttribute(Journal.class, "issns", issn1)).thenReturn(completeId);
-        when(passClientMock.findByAttribute(Journal.class, "issns", issn2)).thenReturn(completeId);
-        when(passClientMock.findByAttribute(Journal.class, "issns", issn3)).thenReturn(missingNameId);
-        when(passClientMock.findByAttribute(Journal.class, "issns", issn4)).thenReturn(missingNameId);
-        when(passClientMock.findByAttribute(Journal.class, "issns", issn5)).thenReturn(missingOneIssnId);
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn1)).thenReturn(new HashSet<>(Collections.singleton(completeId)));
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn2)).thenReturn(new HashSet<>(Collections.singleton(completeId)));
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn3)).thenReturn(new HashSet<>(Collections.singleton(missingNameId)));
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn4)).thenReturn(new HashSet<>(Collections.singleton(missingNameId)));
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn5)).thenReturn(new HashSet<>(Collections.singleton(missingOneIssnId)));
 
 
         when(passClientMock.readResource(completeId, Journal.class)).thenReturn(completeJournal);
@@ -289,7 +285,7 @@ public class PassJournalServiceTest {
         xrefJournal.setName("Advanced Research in Animal Husbandry");
 
         newJournal = underTest.updateJournalInPass(xrefJournal);
-        assertEquals(2,newJournal.getIssns().size());
+        assertEquals(2, newJournal.getIssns().size());
         assertEquals(nlmta, newJournal.getNlmta());
 
     }
@@ -297,13 +293,14 @@ public class PassJournalServiceTest {
     /**
      * We test that an actual JSON serialization of crossref metadata which does not correspond to an object in
      * our mocked PASS data generates a new Pass journal object
+     *
      * @throws Exception in production if an object cannot be resolved from its id
      */
     @Test
-    public void servletTest() throws  Exception {
+    public void servletTest() throws Exception {
 
         when(mockReader.readLine()).thenReturn(xrefJson, null);
-        when(passClientMock.findByAttribute(Journal.class, "issns", "Print:1179-5468")).thenReturn(null);
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", "Print:1179-5468")).thenReturn(null);
 
         underTest.doPost(request, response);
 
@@ -322,6 +319,7 @@ public class PassJournalServiceTest {
     /**
      * We test that metadata which has a matching issn in our mocked PASS data which is complete, does not change the
      * data we have.
+     *
      * @throws Exception in production if an object cannot be resolved from its id
      */
     @Test
@@ -343,6 +341,7 @@ public class PassJournalServiceTest {
     /**
      * We test that metadata going into the servlet and matches a journal missing a name, puts the metadata name onto
      * the PASS journal
+     *
      * @throws Exception in production if an object cannot be resolved from its id
      */
     @Test
@@ -364,8 +363,9 @@ public class PassJournalServiceTest {
     }
 
     /**
-     *  We test that going into the servlet and having more issns than its matching Pass journal adds the missing issn
-     *  to the PASS journal
+     * We test that going into the servlet and having more issns than its matching Pass journal adds the missing issn
+     * to the PASS journal
+     *
      * @throws Exception in production if an object cannot be resolved from its id
      */
     @Test
@@ -385,6 +385,34 @@ public class PassJournalServiceTest {
         assertTrue(fromServlet.getIssns().contains("Online:0000-0005"));
         verify(response, times(1)).setStatus(eq(200));
         assertOutputEquals(fromServlet);
+    }
+
+    /**
+     * Test that the find() method returns the urI best matching the supplied arguments
+     */
+    @Test
+    public void resultSortWorksCorrectly() {
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn1)).thenReturn(new HashSet<>(Collections.singleton(completeId)));
+        when(passClientMock.findAllByAttribute(Journal.class, "issns", issn2)).thenReturn(new HashSet<>(Arrays.asList(missingNameId)));
+        when(passClientMock.findAllByAttribute(Journal.class, "name", journalName)).thenReturn(new HashSet<>(Arrays.asList(completeId, missingNameId)));
+
+        URI resultUri = underTest.find(journalName, Arrays.asList(issn1));
+        assertEquals(completeId, resultUri);
+
+        resultUri = underTest.find(journalName, Arrays.asList(issn2));
+        assertEquals(missingNameId, resultUri);
+
+        resultUri = underTest.find("MOO", Arrays.asList(issn2));
+        assertEquals(missingNameId, resultUri);
+
+        resultUri = underTest.find("MOO", Arrays.asList(issn1));
+        assertEquals(completeId, resultUri);
+
+        resultUri = underTest.find("MOO", Arrays.asList(issn1, issn2));
+        assertNotNull(resultUri);
+
+
+
     }
 
     private void assertOutputEquals(Journal journal) {

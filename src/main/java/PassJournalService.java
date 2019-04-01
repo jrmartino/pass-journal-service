@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.URI;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -154,16 +154,11 @@ public class PassJournalService extends HttpServlet {
      */
     Journal updateJournalInPass(Journal journal) {
         List<String> issns = journal.getIssns();
+        String name = journal.getName();
 
-        URI passJournalUri = null;
         Journal passJournal;
 
-        for (String issn : issns) {
-            passJournalUri = passClient.findByAttribute(Journal.class, "issns", issn);
-            if (passJournalUri != null) {
-                break;
-            }
-        }
+        URI passJournalUri = find(name, issns);
 
         if (passJournalUri == null) {//we don't have this journal in pass yet - let's put this one in
             passJournal = passClient.createAndReadResource(journal, Journal.class);
@@ -194,6 +189,63 @@ public class PassJournalService extends HttpServlet {
 
         }
         return passJournal;
+    }
+
+    /**
+     * Find a journal in our repository. We take the best match we can find. finder algorith her eshould harmonize
+     * with the approach in the {@code BatchJournalFinder} in the journal loader code
+     * @param name the name of the journal to be found
+     * @param issns the set of issns to find. we assume that the issns stored in the repo are og the format type:value
+     * @return the URI of the best match, or null in nothing matches
+     */
+     URI find(String name, List<String> issns) {
+
+        Set<URI> nameUriSet = passClient.findAllByAttribute(Journal.class, "name", name);
+        Map<URI, Integer> uriScores = new HashMap<>();
+
+        if (!issns.isEmpty()) {
+            for (String issn : issns) {
+                Set<URI> issnList = passClient.findAllByAttribute(Journal.class, "issns", issn);
+                if (issnList != null) {
+                    for(URI uri : issnList){
+                        Integer i = uriScores.putIfAbsent(uri, 1);
+                        if (i != null) {
+                            uriScores.put(uri, i + 1);
+                        }
+                    }
+                }
+            }
+        }
+
+
+        if (nameUriSet != null) {
+            for (URI uri : nameUriSet) {
+                Integer i = uriScores.putIfAbsent(uri, 1);
+                if (i != null) {
+                    uriScores.put(uri, i + 1);
+                }
+            }
+        }
+
+
+        if(uriScores.size()>0) {//we have matches, pick the best one
+            Integer highScore = Collections.max(uriScores.values());
+            int minimumQualifyingScore = 1;//with so little to go on, we may realistically get just one hit
+            List<URI> sortedUris = new ArrayList<>();
+
+            for (int i = highScore; i >= minimumQualifyingScore; i--) {
+                for (URI uri : uriScores.keySet()) {
+                    if(uriScores.get(uri) == i) {
+                        sortedUris.add(uri);
+                    }
+                }
+            }
+
+            if (sortedUris.size() > 0 ) {// there are matching journals
+                return sortedUris.get(0); //return the best match
+            }
+        } //nothing matches, create a new journal
+        return null;
     }
 
 }
