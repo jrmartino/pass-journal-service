@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+package org.dataconservancy.pass.journal.service;
 /**
  * This enum manages the various representations for type identifiers for issns
  *

@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+package org.dataconservancy.pass.journal.service;
 
 import org.dataconservancy.pass.client.PassClient;
 import org.dataconservancy.pass.client.PassJsonAdapter;
@@ -58,7 +59,7 @@ public class PassJournalServiceTest {
     @Mock
     BufferedReader mockReader;
 
-    private PassJournalService underTest;
+    private PassJournalServlet underTest;
 
     private ByteArrayOutputStream output;
 
@@ -193,7 +194,7 @@ public class PassJournalServiceTest {
             }
         });
 
-        underTest = new PassJournalService();
+        underTest = new PassJournalServlet();
         underTest.passClient = passClientMock;
         underTest.json = json;
 
@@ -396,16 +397,16 @@ public class PassJournalServiceTest {
         when(passClientMock.findAllByAttribute(Journal.class, "issns", issn2)).thenReturn(new HashSet<>(Arrays.asList(missingNameId)));
         when(passClientMock.findAllByAttribute(Journal.class, "name", journalName)).thenReturn(new HashSet<>(Arrays.asList(completeId, missingNameId)));
 
-        URI resultUri = underTest.find(journalName, Arrays.asList(issn1));
+        URI resultUri = underTest.find(journalName, Collections.singletonList(issn1));
         assertEquals(completeId, resultUri);
 
-        resultUri = underTest.find(journalName, Arrays.asList(issn2));
+        resultUri = underTest.find(journalName, Collections.singletonList(issn2));
         assertEquals(missingNameId, resultUri);
 
-        resultUri = underTest.find("MOO", Arrays.asList(issn2));
+        resultUri = underTest.find("MOO", Collections.singletonList(issn2));
         assertEquals(missingNameId, resultUri);
 
-        resultUri = underTest.find("MOO", Arrays.asList(issn1));
+        resultUri = underTest.find("MOO", Collections.singletonList(issn1));
         assertEquals(completeId, resultUri);
 
         resultUri = underTest.find("MOO", Arrays.asList(issn1, issn2));

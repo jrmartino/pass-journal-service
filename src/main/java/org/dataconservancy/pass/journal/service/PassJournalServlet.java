@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+package org.dataconservancy.pass.journal.service;
 
 import org.dataconservancy.pass.client.PassClient;
 import org.dataconservancy.pass.client.PassClientFactory;
@@ -22,6 +23,7 @@ import org.dataconservancy.pass.client.adapter.PassJsonAdapterBasic;
 import org.dataconservancy.pass.model.Journal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -45,9 +47,9 @@ import java.util.stream.Stream;
 /**
  * @author jrm
  */
-public class PassJournalService extends HttpServlet {
+public class PassJournalServlet extends HttpServlet {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PassJournalService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PassJournalServlet.class);
 
     PassClient passClient = PassClientFactory.getPassClient();
     PassJsonAdapter json = new PassJsonAdapterBasic();
