@@ -23,7 +23,6 @@ import org.dataconservancy.pass.client.adapter.PassJsonAdapterBasic;
 import org.dataconservancy.pass.model.Journal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -83,12 +82,20 @@ public class PassJournalServlet extends HttpServlet {
         //and compare it with what we already have, update if necessary
         journal = updateJournalInPass(journal);
 
-        response.setContentType("application/json");
-        response.setCharacterEncoding("utf-8");
+        if (journal != null) {
 
-        try (OutputStream out = response.getOutputStream()) {
-            out.write(json.toJson(journal, true));
-            response.setStatus(200);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("utf-8");
+
+            try (OutputStream out = response.getOutputStream()) {
+                out.write(json.toJson(journal, true));
+                response.setStatus(200);
+            }
+        } else {
+            try (OutputStream out = response.getOutputStream()) {
+                out.write("Input insufficient to specify a journal entry".getBytes());
+                response.setStatus(400);
+            }
         }
     }
 
@@ -162,8 +169,12 @@ public class PassJournalServlet extends HttpServlet {
 
         URI passJournalUri = find(name, issns);
 
-        if (passJournalUri == null) {//we don't have this journal in pass yet - let's put this one in
-            passJournal = passClient.createAndReadResource(journal, Journal.class);
+        if (passJournalUri == null) {//we don't have this journal in pass yet
+            if(name != null && !name.isEmpty() && issns.size()>0) {//we have enough info to make a journal entry
+                passJournal = passClient.createAndReadResource(journal, Journal.class);
+            } else {//do not have enough to create a new journal
+                return null;
+            }
         } else { //we have a journal, let's see if we can add anything new - title or issns. we add only if not present
             boolean update = false;
             passJournal = passClient.readResource(passJournalUri, Journal.class);
